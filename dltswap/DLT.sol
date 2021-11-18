@@ -7,7 +7,6 @@
 */
 
 pragma solidity ^0.5.16;
-pragma experimental ABIEncoderV2;
 
 // From https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/math/Math.sol
 // Subject to the MIT license.
@@ -194,27 +193,21 @@ library SafeMath {
     }
 }
 
-contract DLT {
+contract HDX {
     /// @notice EIP-20 token name for this token
-    string public constant name = "DLT Token";
+    string public constant name = "Hybrid X Token";
 
     /// @notice EIP-20 token symbol for this token
-    string public constant symbol = "DLT";
+    string public constant symbol = "HDX";
 
     /// @notice EIP-20 token decimals for this token
     uint8 public constant decimals = 18;
 
     /// @notice Total number of tokens in circulation
-    uint public totalSupply = 1_000_000_000e18; // 1 billion DLT
+    uint public totalSupply = 1_000_000_000e18; // 1 billion HDX
 
     /// @notice Address which may mint new tokens
     address public minter;
-
-    /// @notice The timestamp after which minting may occur
-    uint public mintingAllowedAfter;
-
-    /// @notice Minimum time between mints
-    uint32 public constant minimumTimeBetweenMints = 1 days * 365;
 
     /// @notice Cap on the percentage of totalSupply that can be minted at each mint
     uint8 public constant mintCap = 2;
@@ -268,19 +261,15 @@ contract DLT {
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
     /**
-     * @notice Construct a new DLT token
+     * @notice Construct a new HDX token
      * @param account The initial account to grant all the tokens
      * @param minter_ The account with minting ability
-     * @param mintingAllowedAfter_ The timestamp after which minting may occur
      */
-    constructor(address account, address minter_, uint mintingAllowedAfter_) public {
-        require(mintingAllowedAfter_ >= block.timestamp, "DLT::constructor: minting can only begin after deployment");
-
+    constructor(address account, address minter_) public {
         balances[account] = uint96(totalSupply);
         emit Transfer(address(0), account, totalSupply);
         minter = minter_;
         emit MinterChanged(address(0), minter);
-        mintingAllowedAfter = mintingAllowedAfter_;
     }
 
     /**
@@ -288,7 +277,7 @@ contract DLT {
      * @param minter_ The address of the new minter
      */
     function setMinter(address minter_) external {
-        require(msg.sender == minter, "DLT::setMinter: only the minter can change the minter address");
+        require(msg.sender == minter, "HDX::setMinter: only the minter can change the minter address");
         emit MinterChanged(minter, minter_);
         minter = minter_;
     }
@@ -299,20 +288,16 @@ contract DLT {
      * @param rawAmount The number of tokens to be minted
      */
     function mint(address dst, uint rawAmount) external {
-        require(msg.sender == minter, "DLT::mint: only the minter can mint");
-        require(block.timestamp >= mintingAllowedAfter, "DLT::mint: minting not allowed yet");
-        require(dst != address(0), "DLT::mint: cannot transfer to the zero address");
-
-        // record the mint
-        mintingAllowedAfter = SafeMath.add(block.timestamp, minimumTimeBetweenMints);
+        require(msg.sender == minter, "HDX::mint: only the minter can mint");
+        require(dst != address(0), "HDX::mint: cannot transfer to the zero address");
 
         // mint the amount
-        uint96 amount = safe96(rawAmount, "DLT::mint: amount exceeds 96 bits");
-        require(amount <= SafeMath.div(SafeMath.mul(totalSupply, mintCap), 100), "DLT::mint: exceeded mint cap");
-        totalSupply = safe96(SafeMath.add(totalSupply, amount), "DLT::mint: totalSupply exceeds 96 bits");
+        uint96 amount = safe96(rawAmount, "HDX::mint: amount exceeds 96 bits");
+        require(amount <= SafeMath.div(SafeMath.mul(totalSupply, mintCap), 100), "HDX::mint: exceeded mint cap");
+        totalSupply = safe96(SafeMath.add(totalSupply, amount), "HDX::mint: totalSupply exceeds 96 bits");
 
         // transfer the amount to the recipient
-        balances[dst] = add96(balances[dst], amount, "DLT::mint: transfer amount overflows");
+        balances[dst] = add96(balances[dst], amount, "HDX::mint: transfer amount overflows");
         emit Transfer(address(0), dst, amount);
 
         // move delegates
@@ -342,7 +327,7 @@ contract DLT {
         if (rawAmount == uint(-1)) {
             amount = uint96(-1);
         } else {
-            amount = safe96(rawAmount, "DLT::approve: amount exceeds 96 bits");
+            amount = safe96(rawAmount, "HDX::approve: amount exceeds 96 bits");
         }
 
         allowances[msg.sender][spender] = amount;
@@ -366,16 +351,16 @@ contract DLT {
         if (rawAmount == uint(-1)) {
             amount = uint96(-1);
         } else {
-            amount = safe96(rawAmount, "DLT::permit: amount exceeds 96 bits");
+            amount = safe96(rawAmount, "HDX::permit: amount exceeds 96 bits");
         }
 
         bytes32 domainSeparator = keccak256(abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), getChainId(), address(this)));
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, rawAmount, nonces[owner]++, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         address signatory = ecrecover(digest, v, r, s);
-        require(signatory != address(0), "DLT::permit: invalid signature");
-        require(signatory == owner, "DLT::permit: unauthorized");
-        require(now <= deadline, "DLT::permit: signature expired");
+        require(signatory != address(0), "HDX::permit: invalid signature");
+        require(signatory == owner, "HDX::permit: unauthorized");
+        require(now <= deadline, "HDX::permit: signature expired");
 
         allowances[owner][spender] = amount;
 
@@ -398,7 +383,7 @@ contract DLT {
      * @return Whether or not the transfer succeeded
      */
     function transfer(address dst, uint rawAmount) external returns (bool) {
-        uint96 amount = safe96(rawAmount, "DLT::transfer: amount exceeds 96 bits");
+        uint96 amount = safe96(rawAmount, "HDX::transfer: amount exceeds 96 bits");
         _transferTokens(msg.sender, dst, amount);
         return true;
     }
@@ -413,10 +398,10 @@ contract DLT {
     function transferFrom(address src, address dst, uint rawAmount) external returns (bool) {
         address spender = msg.sender;
         uint96 spenderAllowance = allowances[src][spender];
-        uint96 amount = safe96(rawAmount, "DLT::approve: amount exceeds 96 bits");
+        uint96 amount = safe96(rawAmount, "HDX::approve: amount exceeds 96 bits");
 
         if (spender != src && spenderAllowance != uint96(-1)) {
-            uint96 newAllowance = sub96(spenderAllowance, amount, "DLT::transferFrom: transfer amount exceeds spender allowance");
+            uint96 newAllowance = sub96(spenderAllowance, amount, "HDX::transferFrom: transfer amount exceeds spender allowance");
             allowances[src][spender] = newAllowance;
 
             emit Approval(src, spender, newAllowance);
@@ -448,9 +433,9 @@ contract DLT {
         bytes32 structHash = keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         address signatory = ecrecover(digest, v, r, s);
-        require(signatory != address(0), "DLT::delegateBySig: invalid signature");
-        require(nonce == nonces[signatory]++, "DLT::delegateBySig: invalid nonce");
-        require(now <= expiry, "DLT::delegateBySig: signature expired");
+        require(signatory != address(0), "HDX::delegateBySig: invalid signature");
+        require(nonce == nonces[signatory]++, "HDX::delegateBySig: invalid nonce");
+        require(now <= expiry, "HDX::delegateBySig: signature expired");
         return _delegate(signatory, delegatee);
     }
 
@@ -472,7 +457,7 @@ contract DLT {
      * @return The number of votes the account had as of the given block
      */
     function getPriorVotes(address account, uint blockNumber) public view returns (uint96) {
-        require(blockNumber < block.number, "DLT::getPriorVotes: not yet determined");
+        require(blockNumber < block.number, "HDX::getPriorVotes: not yet determined");
 
         uint32 nCheckpoints = numCheckpoints[account];
         if (nCheckpoints == 0) {
@@ -516,11 +501,11 @@ contract DLT {
     }
 
     function _transferTokens(address src, address dst, uint96 amount) internal {
-        require(src != address(0), "DLT::_transferTokens: cannot transfer from the zero address");
-        require(dst != address(0), "DLT::_transferTokens: cannot transfer to the zero address");
+        require(src != address(0), "HDX::_transferTokens: cannot transfer from the zero address");
+        require(dst != address(0), "HDX::_transferTokens: cannot transfer to the zero address");
 
-        balances[src] = sub96(balances[src], amount, "DLT::_transferTokens: transfer amount exceeds balance");
-        balances[dst] = add96(balances[dst], amount, "DLT::_transferTokens: transfer amount overflows");
+        balances[src] = sub96(balances[src], amount, "HDX::_transferTokens: transfer amount exceeds balance");
+        balances[dst] = add96(balances[dst], amount, "HDX::_transferTokens: transfer amount overflows");
         emit Transfer(src, dst, amount);
 
         _moveDelegates(delegates[src], delegates[dst], amount);
@@ -531,21 +516,21 @@ contract DLT {
             if (srcRep != address(0)) {
                 uint32 srcRepNum = numCheckpoints[srcRep];
                 uint96 srcRepOld = srcRepNum > 0 ? checkpoints[srcRep][srcRepNum - 1].votes : 0;
-                uint96 srcRepNew = sub96(srcRepOld, amount, "DLT::_moveVotes: vote amount underflows");
+                uint96 srcRepNew = sub96(srcRepOld, amount, "HDX::_moveVotes: vote amount underflows");
                 _writeCheckpoint(srcRep, srcRepNum, srcRepOld, srcRepNew);
             }
 
             if (dstRep != address(0)) {
                 uint32 dstRepNum = numCheckpoints[dstRep];
                 uint96 dstRepOld = dstRepNum > 0 ? checkpoints[dstRep][dstRepNum - 1].votes : 0;
-                uint96 dstRepNew = add96(dstRepOld, amount, "DLT::_moveVotes: vote amount overflows");
+                uint96 dstRepNew = add96(dstRepOld, amount, "HDX::_moveVotes: vote amount overflows");
                 _writeCheckpoint(dstRep, dstRepNum, dstRepOld, dstRepNew);
             }
         }
     }
 
     function _writeCheckpoint(address delegatee, uint32 nCheckpoints, uint96 oldVotes, uint96 newVotes) internal {
-        uint32 blockNumber = safe32(block.number, "DLT::_writeCheckpoint: block number exceeds 32 bits");
+        uint32 blockNumber = safe32(block.number, "HDX::_writeCheckpoint: block number exceeds 32 bits");
 
         if (nCheckpoints > 0 && checkpoints[delegatee][nCheckpoints - 1].fromBlock == blockNumber) {
             checkpoints[delegatee][nCheckpoints - 1].votes = newVotes;
